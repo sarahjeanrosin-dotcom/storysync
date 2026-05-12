@@ -1,71 +1,76 @@
 import PptxGenJS from 'pptxgenjs';
 import { generateAllSlideContent } from './generateContent';
 
-// Genea brand palette (no # prefix — pptxgenjs convention)
+// ─── Genea official brand palette (brand guide v3.0) ─────────────────────────
+// Newport Blue  — Pantone 2955 — #003B67  — backgrounds, reversed type
+// Catalina Blue — Pantone 2925 — #009CDE  — headlines, accents, security
 const B = {
-  bgDeep:   '080810',
-  bgMid:    '0D0D1B',
-  bgLight:  '12121F',
-  blue:     '3B8BD4',
-  white:    'FFFFFF',
-  body:     'CBD5E1',
-  muted:    '64748B',
-  dim:      '334155',
-  border:   '1E293B',
-  green:    '1D9E75',
-  red:      'E24B4A',
+  navy:      '003B67',  // Newport Blue — primary dark
+  navyMid:   '004F85',  // mid-navy for slide backgrounds
+  navyCard:  '003057',  // card fills
+  sky:       '009CDE',  // Catalina Blue — primary accent
+  skyDeep:   '0078B3',  // deeper accent
+  skyLight:  '33B5E6',  // lighter sky for secondary accents
+  white:     'FFFFFF',
+  bodyText:  'BDD8EE',  // light blue-white for body on dark
+  mutedText: '5E9EC7',  // muted blue
+  dimText:   '2A6899',  // dim for footers
+  border:    '1A5A8A',  // subtle border
+  sand:      'F5F4F0',  // brand sand (for light-bg variants)
 };
 
+// Pillar accent colors — all Catalina Blue family
 const PILLARS = [
-  { title: 'Cloud-Native',        color: B.blue },
-  { title: 'Open Architecture',   color: B.green },
-  { title: 'Innovation-Forward',  color: '8BC34A' },
-  { title: 'Mobile Credentials',  color: 'F9CB42' },
-  { title: 'Best UX & Service',   color: 'EF9F27' },
+  { title: 'Cloud-Native',        color: B.sky      },
+  { title: 'Open Architecture',   color: B.skyDeep  },
+  { title: 'Innovation-Forward',  color: '005F8E'   },
+  { title: 'Mobile Credentials',  color: B.skyLight },
+  { title: 'Best UX & Service',   color: B.navyMid  },
 ];
 
-function hex(nodeColor) { return nodeColor.replace('#', ''); }
+const FONT = 'Gotham';  // brand print font; falls back to Calibri in PowerPoint if not installed
+
 function slideType(filename) { return filename.replace('slide-', '').replace('.png', ''); }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-function imgPlaceholder(slide, x, y, w, h, color, label) {
+function imgPlaceholder(slide, x, y, w, h, label) {
   slide.addShape('rect', {
     x, y, w, h,
-    fill: { color: B.bgLight },
-    line: { color, width: 1, dashType: 'dash' },
+    fill: { color: B.navyCard },
+    line: { color: B.sky, width: 1, dashType: 'dash' },
   });
   slide.addText(`[ ${label} ]`, {
     x, y: y + h / 2 - 0.25, w, h: 0.5,
-    fontSize: 9, color: B.dim, italic: true,
-    fontFace: 'Calibri', align: 'center',
+    fontSize: 9, color: B.dimText, italic: true,
+    fontFace: FONT, align: 'center',
   });
 }
 
-function footer(slide, color) {
+function footer(slide) {
   slide.addShape('rect', { x: 0.08, y: 5.32, w: 9.92, h: 0.02, fill: { color: B.border } });
-  slide.addText('GENEA  ·  CONFIDENTIAL', {
+  slide.addText('genea  ·  confidential', {
     x: 0.22, y: 5.36, w: 5, h: 0.22,
-    fontSize: 7, color: B.dim, fontFace: 'Calibri', charSpacing: 1,
+    fontSize: 7, color: B.dimText, fontFace: FONT, charSpacing: 1,
   });
 }
 
-function accentBar(slide, color) {
-  slide.addShape('rect', { x: 0, y: 0, w: 0.08, h: 5.625, fill: { color } });
+function leftBar(slide) {
+  slide.addShape('rect', { x: 0, y: 0, w: 0.08, h: 5.625, fill: { color: B.sky } });
 }
 
-function phaseLabel(slide, phase, suffix, color) {
+function phaseLabel(slide, phase, suffix) {
   slide.addText(`${phase.label.toUpperCase()}  ·  ${suffix}`, {
     x: 0.22, y: 0.18, w: 8, h: 0.28,
-    fontSize: 7.5, bold: true, color,
-    fontFace: 'Calibri', charSpacing: 2,
+    fontSize: 7.5, bold: true, color: B.sky,
+    fontFace: FONT, charSpacing: 2,
   });
 }
 
 function headline(slide, text, y = 0.55, w = 5.7, size = 26) {
   slide.addText(text, {
     x: 0.22, y, w, h: 1.0,
-    fontSize: size, bold: true, color: B.white, fontFace: 'Calibri',
+    fontSize: size, bold: true, color: B.white, fontFace: FONT,
   });
 }
 
@@ -73,7 +78,7 @@ function bulletList(slide, bullets, x = 0.22, y = 1.65, w = 5.6, h = 3.1) {
   if (!bullets?.length) return;
   slide.addText(
     bullets.slice(0, 4).map(b => ({ text: b, options: { bullet: true, paraSpaceAfter: 8 } })),
-    { x, y, w, h, fontSize: 13, color: B.body, fontFace: 'Calibri', valign: 'top' }
+    { x, y, w, h, fontSize: 13, color: B.bodyText, fontFace: FONT, valign: 'top' }
   );
 }
 
@@ -81,54 +86,60 @@ function bulletList(slide, bullets, x = 0.22, y = 1.65, w = 5.6, h = 3.1) {
 
 function addTitleSlide(pptx, { content, verticalLabel, tagline }) {
   const slide = pptx.addSlide();
-  slide.background = { color: B.bgDeep };
+  slide.background = { color: B.navy };
 
-  // Background image placeholder (full bleed)
-  imgPlaceholder(slide, 0, 0, 10, 5.625, B.border, 'background image');
+  // Full-bleed image placeholder
+  imgPlaceholder(slide, 0, 0, 10, 5.625, 'background image');
 
-  // Dark overlay panel so text reads clearly
-  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 5.625, fill: { color: B.bgDeep, transparency: 30 } });
+  // Newport Blue overlay so text pops over the image
+  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 5.625, fill: { color: B.navy, transparency: 25 } });
 
-  // Top accent bar + wordmark
-  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.07, fill: { color: B.blue } });
-  slide.addText('GENEA', {
+  // Catalina Blue top bar
+  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.08, fill: { color: B.sky } });
+
+  // Wordmark
+  slide.addText('genea', {
     x: 0.5, y: 0.2, w: 3, h: 0.45,
-    fontSize: 18, bold: true, color: B.white,
-    fontFace: 'Calibri', charSpacing: 4,
+    fontSize: 20, bold: true, color: B.white,
+    fontFace: FONT, charSpacing: 3,
   });
 
-  // Tagline (large, centered)
+  // Tagline — Catalina Blue, large
   slide.addText(tagline ?? content.headline ?? verticalLabel, {
-    x: 0.75, y: 1.6, w: 8.5, h: 1.5,
-    fontSize: 38, bold: true, color: B.white,
-    fontFace: 'Calibri', align: 'center',
+    x: 0.75, y: 1.55, w: 8.5, h: 1.5,
+    fontSize: 38, bold: true, color: B.sky,
+    fontFace: FONT, align: 'center',
   });
 
-  // Vertical label beneath tagline
+  // Vertical label — white beneath
   slide.addText(verticalLabel.toUpperCase(), {
-    x: 0.75, y: 3.15, w: 8.5, h: 0.5,
-    fontSize: 14, color: B.blue,
-    fontFace: 'Calibri', align: 'center', charSpacing: 3,
+    x: 0.75, y: 3.1, w: 8.5, h: 0.55,
+    fontSize: 14, color: B.white,
+    fontFace: FONT, align: 'center', charSpacing: 4,
   });
 
-  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.blue } });
+  // Bottom Catalina Blue bar
+  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.sky } });
+
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function add5PillarsSlide(pptx, { content }) {
   const slide = pptx.addSlide();
-  slide.background = { color: B.bgDeep };
+  slide.background = { color: B.navy };
 
-  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.07, fill: { color: B.blue } });
+  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.08, fill: { color: B.sky } });
+
   slide.addText('THE 5 PILLARS OF MODERN ACCESS CONTROL', {
     x: 0.5, y: 0.18, w: 9, h: 0.38,
     fontSize: 11, bold: true, color: B.white,
-    fontFace: 'Calibri', charSpacing: 2, align: 'center',
+    fontFace: FONT, charSpacing: 2, align: 'center',
   });
+
   slide.addText(content.headline ?? '', {
-    x: 0.5, y: 0.65, w: 9, h: 0.4,
-    fontSize: 12, color: B.body, italic: true,
-    fontFace: 'Calibri', align: 'center',
+    x: 0.5, y: 0.65, w: 9, h: 0.38,
+    fontSize: 12, color: B.bodyText, italic: true,
+    fontFace: FONT, align: 'center',
   });
 
   // 5 pillar boxes
@@ -141,172 +152,171 @@ function add5PillarsSlide(pptx, { content }) {
 
     slide.addShape('rect', {
       x, y: 1.2, w: bw, h: bh,
-      fill: { color: B.bgLight },
+      fill: { color: B.navyCard },
       line: { color: pillar.color, width: 1.5 },
     });
     slide.addText(`${i + 1}`, {
       x, y: 1.3, w: bw, h: 0.42,
       fontSize: 14, bold: true, color: pillar.color,
-      fontFace: 'Calibri', align: 'center',
+      fontFace: FONT, align: 'center',
     });
     slide.addShape('rect', { x, y: 1.72, w: bw, h: 0.02, fill: { color: pillar.color } });
     slide.addText(pillar.title, {
       x, y: 1.8, w: bw, h: 0.5,
       fontSize: 9.5, bold: true, color: B.white,
-      fontFace: 'Calibri', align: 'center',
+      fontFace: FONT, align: 'center',
     });
     slide.addText(desc, {
       x: x + 0.1, y: 2.35, w: bw - 0.2, h: 2.3,
-      fontSize: 9, color: B.body,
-      fontFace: 'Calibri', align: 'center', valign: 'top',
+      fontSize: 9, color: B.bodyText,
+      fontFace: FONT, align: 'center', valign: 'top',
     });
   });
 
-  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.blue } });
+  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.sky } });
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addStatsSlide(pptx, { phase, content }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
-  slide.background = { color: B.bgDeep };
+  slide.background = { color: B.navy };
 
-  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.07, fill: { color } });
+  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.08, fill: { color: B.sky } });
   slide.addText(`${phase.label.toUpperCase()}  ·  ${phase.title.toUpperCase()}`, {
     x: 0.5, y: 0.18, w: 9, h: 0.28,
-    fontSize: 8, bold: true, color,
-    fontFace: 'Calibri', charSpacing: 2, align: 'center',
+    fontSize: 8, bold: true, color: B.sky,
+    fontFace: FONT, charSpacing: 2, align: 'center',
   });
   slide.addText(content.headline ?? phase.title, {
     x: 0.5, y: 0.55, w: 9, h: 0.65,
     fontSize: 22, bold: true, color: B.white,
-    fontFace: 'Calibri', align: 'center',
+    fontFace: FONT, align: 'center',
   });
 
-  // 3 stat boxes — each bullet formatted as "VALUE description"
   const stats = (content.bullets ?? []).slice(0, 3);
   const bw = 2.7, bh = 2.9, gap = 0.45;
   const sx  = (10 - (3 * bw + 2 * gap)) / 2;
 
   stats.forEach((stat, i) => {
-    const x      = sx + i * (bw + gap);
-    const parts  = stat.split(/\s+/);
-    const value  = parts[0] ?? '';
-    const label  = parts.slice(1).join(' ');
+    const x     = sx + i * (bw + gap);
+    const parts = stat.split(/\s+/);
+    const value = parts[0] ?? '';
+    const label = parts.slice(1).join(' ');
 
     slide.addShape('rect', {
       x, y: 1.45, w: bw, h: bh,
-      fill: { color: B.bgMid },
-      line: { color, width: 1 },
+      fill: { color: B.navyMid },
+      line: { color: B.sky, width: 1.5 },
     });
+    // Top Catalina Blue accent stripe on each stat box
+    slide.addShape('rect', { x, y: 1.45, w: bw, h: 0.06, fill: { color: B.sky } });
+
     slide.addText(value, {
       x, y: 1.7, w: bw, h: 1.0,
-      fontSize: 40, bold: true, color,
-      fontFace: 'Calibri', align: 'center',
+      fontSize: 40, bold: true, color: B.sky,
+      fontFace: FONT, align: 'center',
     });
     slide.addText(label, {
       x: x + 0.1, y: 2.8, w: bw - 0.2, h: 1.3,
-      fontSize: 11, color: B.body,
-      fontFace: 'Calibri', align: 'center', valign: 'top',
+      fontSize: 11, color: B.bodyText,
+      fontFace: FONT, align: 'center', valign: 'top',
     });
   });
 
-  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.blue } });
+  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.sky } });
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addProblemSlide(pptx, { phase, content }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
-  slide.background = { color: B.bgMid };
-  accentBar(slide, color);
-  phaseLabel(slide, phase, 'THE CHANGING WORLD', color);
+  slide.background = { color: B.navyMid };
+  leftBar(slide);
+  phaseLabel(slide, phase, 'THE CHANGING WORLD');
   headline(slide, content.headline ?? phase.title);
   bulletList(slide, content.bullets);
-  imgPlaceholder(slide, 6.2, 0.45, 3.55, 4.6, color, 'problem');
-  footer(slide, color);
+  imgPlaceholder(slide, 6.2, 0.45, 3.55, 4.6, 'problem');
+  footer(slide);
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addStakesSlide(pptx, { phase, content }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
-  slide.background = { color: B.bgMid };
-  accentBar(slide, color);
-  phaseLabel(slide, phase, 'THE COST OF STAYING ON-PREM', color);
+  slide.background = { color: B.navyMid };
+  leftBar(slide);
+  phaseLabel(slide, phase, 'THE COST OF STAYING ON-PREM');
   headline(slide, content.headline ?? phase.title);
   bulletList(slide, content.bullets);
-  imgPlaceholder(slide, 6.2, 0.45, 3.55, 4.6, color, 'stakes');
-  footer(slide, color);
+  imgPlaceholder(slide, 6.2, 0.45, 3.55, 4.6, 'stakes');
+  footer(slide);
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addVisionSlide(pptx, { phase, content }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
-  slide.background = { color: B.bgMid };
-  accentBar(slide, color);
-  phaseLabel(slide, phase, 'CASE STUDY — WHAT GOOD LOOKS LIKE', color);
+  slide.background = { color: B.navyMid };
+  leftBar(slide);
+  phaseLabel(slide, phase, 'CASE STUDY — WHAT GOOD LOOKS LIKE');
 
-  // Quote-style headline
   slide.addText(`"${content.headline ?? phase.title}"`, {
     x: 0.22, y: 0.55, w: 5.7, h: 1.2,
-    fontSize: 22, bold: true, color: B.white, italic: true, fontFace: 'Calibri',
+    fontSize: 22, bold: true, color: B.white, italic: true, fontFace: FONT,
   });
   bulletList(slide, content.bullets, 0.22, 1.9, 5.6, 2.85);
-  imgPlaceholder(slide, 6.2, 0.45, 3.55, 4.6, color, 'case study');
-  footer(slide, color);
+  imgPlaceholder(slide, 6.2, 0.45, 3.55, 4.6, 'case study');
+  footer(slide);
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addSolutionSlide(pptx, { phase, content, slideFilename }) {
-  const slide  = pptx.addSlide();
-  const color  = hex(phase.nodeColor);
-  const num    = slideFilename.match(/solution-(\d)/)?.[1] ?? '';
-  slide.background = { color: B.bgMid };
-  accentBar(slide, color);
-  phaseLabel(slide, phase, `THE GENEA SOLUTION${num ? `  (${num} / 3)` : ''}`, color);
-  headline(slide, content.headline ?? phase.title, 0.55, 9.5, 24);
+  const slide = pptx.addSlide();
+  const num   = slideFilename.match(/solution-(\d)/)?.[1] ?? '';
+  slide.background = { color: B.navyMid };
+  leftBar(slide);
+  phaseLabel(slide, phase, `THE GENEA SOLUTION${num ? `  (${num} / 3)` : ''}`);
 
-  // 3 feature cards across full width
+  slide.addText(content.headline ?? phase.title, {
+    x: 0.22, y: 0.55, w: 9.5, h: 0.9,
+    fontSize: 24, bold: true, color: B.white, fontFace: FONT,
+  });
+
   const cw = 2.9, ch = 3.2, gap = 0.25, sx = 0.22;
   (content.bullets ?? []).slice(0, 3).forEach((feat, i) => {
     const x = sx + i * (cw + gap);
     slide.addShape('rect', {
       x, y: 1.6, w: cw, h: ch,
-      fill: { color: B.bgLight },
-      line: { color, width: 1 },
+      fill: { color: B.navyCard },
+      line: { color: B.sky, width: 1 },
     });
+    // Catalina Blue top stripe
+    slide.addShape('rect', { x, y: 1.6, w: cw, h: 0.04, fill: { color: B.sky } });
     slide.addText(`0${i + 1}`, {
-      x, y: 1.75, w: cw, h: 0.42,
-      fontSize: 11, bold: true, color,
-      fontFace: 'Calibri', align: 'center', charSpacing: 2,
+      x, y: 1.72, w: cw, h: 0.42,
+      fontSize: 11, bold: true, color: B.sky,
+      fontFace: FONT, align: 'center', charSpacing: 2,
     });
-    slide.addShape('rect', { x, y: 2.17, w: cw, h: 0.02, fill: { color } });
+    slide.addShape('rect', { x, y: 2.17, w: cw, h: 0.02, fill: { color: B.border } });
     slide.addText(feat, {
       x: x + 0.15, y: 2.25, w: cw - 0.3, h: 2.45,
-      fontSize: 11, color: B.body,
-      fontFace: 'Calibri', align: 'center', valign: 'top',
+      fontSize: 11, color: B.bodyText,
+      fontFace: FONT, align: 'center', valign: 'top',
     });
   });
 
-  footer(slide, color);
+  footer(slide);
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addLogosSlide(pptx, { phase, content }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
-  slide.background = { color: B.bgDeep };
+  slide.background = { color: B.navy };
 
-  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.07, fill: { color } });
+  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.08, fill: { color: B.sky } });
   slide.addText(content.headline ?? 'TRUSTED BY INDUSTRY LEADERS', {
     x: 0.5, y: 0.18, w: 9, h: 0.42,
     fontSize: 14, bold: true, color: B.white,
-    fontFace: 'Calibri', align: 'center', charSpacing: 1,
+    fontFace: FONT, align: 'center', charSpacing: 1,
   });
 
-  // 5 × 2 logo placeholder grid
   const cols = 5, rows = 2, lw = 1.6, lh = 1.05, gx = 0.2, gy = 0.3;
   const sx   = (10 - (cols * lw + (cols - 1) * gx)) / 2;
 
@@ -316,60 +326,64 @@ function addLogosSlide(pptx, { phase, content }) {
       const y = 0.88 + r * (lh + gy);
       slide.addShape('rect', {
         x, y, w: lw, h: lh,
-        fill: { color: B.bgLight },
+        fill: { color: B.navyMid },
         line: { color: B.border, width: 0.5 },
       });
       slide.addText('logo', {
         x, y: y + 0.33, w: lw, h: 0.38,
-        fontSize: 8, color: B.dim, italic: true,
-        fontFace: 'Calibri', align: 'center',
+        fontSize: 8, color: B.dimText, italic: true,
+        fontFace: FONT, align: 'center',
       });
     }
   }
 
-  // Supporting copy beneath the grid
   const bullets = (content.bullets ?? []).slice(0, 2);
   if (bullets.length) {
     slide.addText(bullets.join('  ·  '), {
       x: 0.5, y: 4.9, w: 9, h: 0.3,
-      fontSize: 9, color: B.muted, italic: true,
-      fontFace: 'Calibri', align: 'center',
+      fontSize: 9, color: B.mutedText, italic: true,
+      fontFace: FONT, align: 'center',
     });
   }
 
-  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.blue } });
+  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.sky } });
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addOutcomesSlide(pptx, { phase, content, slideFilename }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
   const num   = slideFilename.match(/outcomes-(\d)/)?.[1] ?? '';
-  slide.background = { color: B.bgMid };
-  accentBar(slide, color);
-  phaseLabel(slide, phase, `THE GENEA IMPACT${num ? `  (${num} / 2)` : ''}`, color);
-  headline(slide, content.headline ?? 'Here\'s What We Can Do For You', 0.55, 9.5, 22);
+  slide.background = { color: B.navyMid };
+  leftBar(slide);
+  phaseLabel(slide, phase, `THE GENEA IMPACT${num ? `  (${num} / 2)` : ''}`);
 
-  // Before / After columns
-  const colH = 3.5;
-  slide.addShape('rect', {
-    x: 0.22, y: 1.5, w: 4.3, h: colH,
-    fill: { color: B.bgLight }, line: { color: B.border, width: 1 },
+  slide.addText(content.headline ?? "Here's What We Can Do For You", {
+    x: 0.22, y: 0.55, w: 9.5, h: 0.8,
+    fontSize: 22, bold: true, color: B.white, fontFace: FONT,
   });
+
+  // Before column — deep navy fill, sky border
+  slide.addShape('rect', {
+    x: 0.22, y: 1.5, w: 4.3, h: 3.5,
+    fill: { color: B.navyCard }, line: { color: B.border, width: 1 },
+  });
+  slide.addShape('rect', { x: 0.22, y: 1.5, w: 4.3, h: 0.38, fill: { color: B.border } });
   slide.addText('BEFORE GENEA', {
-    x: 0.22, y: 1.6, w: 4.3, h: 0.32,
-    fontSize: 8, bold: true, color: B.red,
-    fontFace: 'Calibri', align: 'center', charSpacing: 2,
+    x: 0.22, y: 1.56, w: 4.3, h: 0.26,
+    fontSize: 8, bold: true, color: B.bodyText,
+    fontFace: FONT, align: 'center', charSpacing: 2,
   });
 
+  // After column — Catalina Blue accent top
   slide.addShape('rect', {
-    x: 4.72, y: 1.5, w: 4.3, h: colH,
-    fill: { color: B.bgLight }, line: { color: B.green, width: 1 },
+    x: 4.72, y: 1.5, w: 4.3, h: 3.5,
+    fill: { color: B.navyCard }, line: { color: B.sky, width: 1 },
   });
+  slide.addShape('rect', { x: 4.72, y: 1.5, w: 4.3, h: 0.38, fill: { color: B.sky } });
   slide.addText('WITH GENEA', {
-    x: 4.72, y: 1.6, w: 4.3, h: 0.32,
-    fontSize: 8, bold: true, color: B.green,
-    fontFace: 'Calibri', align: 'center', charSpacing: 2,
+    x: 4.72, y: 1.56, w: 4.3, h: 0.26,
+    fontSize: 8, bold: true, color: B.white,
+    fontFace: FONT, align: 'center', charSpacing: 2,
   });
 
   const bullets = content.bullets ?? [];
@@ -379,91 +393,94 @@ function addOutcomesSlide(pptx, { phase, content, slideFilename }) {
   if (before.length) {
     slide.addText(
       before.map(b => ({ text: b, options: { bullet: true, paraSpaceAfter: 8 } })),
-      { x: 0.35, y: 2.05, w: 4.05, h: 2.75, fontSize: 11, color: B.body, fontFace: 'Calibri', valign: 'top' }
+      { x: 0.35, y: 2.02, w: 4.05, h: 2.78, fontSize: 11, color: B.bodyText, fontFace: FONT, valign: 'top' }
     );
   }
   if (after.length) {
     slide.addText(
       after.map(b => ({ text: b, options: { bullet: true, paraSpaceAfter: 8 } })),
-      { x: 4.85, y: 2.05, w: 4.05, h: 2.75, fontSize: 11, color: B.body, fontFace: 'Calibri', valign: 'top' }
+      { x: 4.85, y: 2.02, w: 4.05, h: 2.78, fontSize: 11, color: B.bodyText, fontFace: FONT, valign: 'top' }
     );
   }
 
-  footer(slide, color);
+  footer(slide);
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addChampionSlide(pptx, { phase, content }) {
   const slide = pptx.addSlide();
-  const color = hex(phase.nodeColor);
-  slide.background = { color: B.bgMid };
-  accentBar(slide, color);
-  phaseLabel(slide, phase, 'ARMING YOUR CHAMPION', color);
-  headline(slide, content.headline ?? 'How To Bring Genea Back To Your Team', 0.55, 9.5, 22);
+  slide.background = { color: B.navyMid };
+  leftBar(slide);
+  phaseLabel(slide, phase, 'ARMING YOUR CHAMPION');
 
-  // Numbered step cards
+  slide.addText(content.headline ?? 'How To Bring Genea Back To Your Team', {
+    x: 0.22, y: 0.55, w: 9.5, h: 0.9,
+    fontSize: 22, bold: true, color: B.white, fontFace: FONT,
+  });
+
   const cw = 2.15, ch = 3.0, gap = 0.23, sx = 0.22;
   (content.bullets ?? []).slice(0, 4).forEach((step, i) => {
     const x = sx + i * (cw + gap);
     slide.addShape('rect', {
       x, y: 1.6, w: cw, h: ch,
-      fill: { color: B.bgLight }, line: { color, width: 1 },
+      fill: { color: B.navyCard }, line: { color: B.sky, width: 1 },
     });
-    slide.addShape('rect', { x, y: 1.6, w: cw, h: 0.42, fill: { color } });
+    slide.addShape('rect', { x, y: 1.6, w: cw, h: 0.42, fill: { color: B.sky } });
     slide.addText(`${i + 1}`, {
       x, y: 1.66, w: cw, h: 0.3,
       fontSize: 11, bold: true, color: B.white,
-      fontFace: 'Calibri', align: 'center', charSpacing: 1,
+      fontFace: FONT, align: 'center', charSpacing: 1,
     });
     slide.addText(step, {
       x: x + 0.12, y: 2.1, w: cw - 0.24, h: 2.38,
-      fontSize: 10, color: B.body,
-      fontFace: 'Calibri', align: 'center', valign: 'top',
+      fontSize: 10, color: B.bodyText,
+      fontFace: FONT, align: 'center', valign: 'top',
     });
   });
 
-  footer(slide, color);
+  footer(slide);
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
 function addNextStepsSlide(pptx, { content }) {
   const slide = pptx.addSlide();
-  slide.background = { color: B.bgDeep };
+  slide.background = { color: B.navy };
 
-  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.07, fill: { color: B.blue } });
-  slide.addText('GENEA', {
+  slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.08, fill: { color: B.sky } });
+
+  slide.addText('genea', {
     x: 0.5, y: 0.2, w: 3, h: 0.42,
     fontSize: 16, bold: true, color: B.white,
-    fontFace: 'Calibri', charSpacing: 4,
-  });
-  slide.addText(content.headline ?? "Let's Build Something Together", {
-    x: 0.5, y: 0.85, w: 9, h: 1.1,
-    fontSize: 34, bold: true, color: B.white,
-    fontFace: 'Calibri', align: 'center',
+    fontFace: FONT, charSpacing: 3,
   });
 
-  // Numbered step boxes
+  slide.addText(content.headline ?? "Let's Build Something Together", {
+    x: 0.5, y: 0.85, w: 9, h: 1.1,
+    fontSize: 32, bold: true, color: B.sky,
+    fontFace: FONT, align: 'center',
+  });
+
   const cw = 2.85, gap = 0.25, sx = 0.5;
   (content.bullets ?? []).slice(0, 3).forEach((step, i) => {
     const x = sx + i * (cw + gap);
     slide.addShape('rect', {
       x, y: 2.2, w: cw, h: 2.55,
-      fill: { color: B.bgMid }, line: { color: B.blue, width: 1.5 },
+      fill: { color: B.navyMid }, line: { color: B.sky, width: 1.5 },
     });
-    slide.addShape('rect', { x, y: 2.2, w: cw, h: 0.42, fill: { color: B.blue } });
+    slide.addShape('rect', { x, y: 2.2, w: cw, h: 0.42, fill: { color: B.sky } });
     slide.addText(`STEP ${i + 1}`, {
       x, y: 2.27, w: cw, h: 0.28,
       fontSize: 8, bold: true, color: B.white,
-      fontFace: 'Calibri', align: 'center', charSpacing: 2,
+      fontFace: FONT, align: 'center', charSpacing: 2,
     });
     slide.addText(step, {
       x: x + 0.15, y: 2.72, w: cw - 0.3, h: 1.9,
-      fontSize: 11, color: B.body,
-      fontFace: 'Calibri', align: 'center', valign: 'top',
+      fontSize: 11, color: B.bodyText,
+      fontFace: FONT, align: 'center', valign: 'top',
     });
   });
 
-  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.blue } });
+  slide.addShape('rect', { x: 0, y: 5.2, w: 10, h: 0.425, fill: { color: B.sky } });
   if (content.speakerNote) slide.addNotes(content.speakerNote);
 }
 
