@@ -30,6 +30,11 @@ const PILLARS = [
 
 const FONT = 'Gotham';  // brand print font; falls back to Calibri in PowerPoint if not installed
 
+const VERTICAL_BACKGROUNDS = {
+  highered:   '/slides/bg-highered.png',
+  k12:        '/slides/bg-k12.png',
+};
+
 function slideType(filename) { return filename.replace('slide-', '').replace('.png', ''); }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -84,12 +89,15 @@ function bulletList(slide, bullets, x = 0.22, y = 1.65, w = 5.6, h = 3.1) {
 
 // ─── Slide templates ──────────────────────────────────────────────────────────
 
-function addTitleSlide(pptx, { content, verticalLabel, tagline }) {
+function addTitleSlide(pptx, { content, verticalLabel, tagline, bgImage }) {
   const slide = pptx.addSlide();
   slide.background = { color: B.navy };
 
-  // Full-bleed image placeholder
-  imgPlaceholder(slide, 0, 0, 10, 5.625, 'background image');
+  if (bgImage) {
+    slide.addImage({ path: bgImage, x: 0, y: 0, w: 10, h: 5.625 });
+  } else {
+    imgPlaceholder(slide, 0, 0, 10, 5.625, 'background image');
+  }
 
   // Newport Blue overlay so text pops over the image
   slide.addShape('rect', { x: 0, y: 0, w: 10, h: 5.625, fill: { color: B.navy, transparency: 25 } });
@@ -520,6 +528,7 @@ export async function buildDeck({ phases, vertical, contextText, verticalLabel }
 
   const prequel = phases.find(p => p.id === 'prequel');
   const tagline = prequel?.taglines?.[vertical] ?? verticalLabel;
+  const bgImage = VERTICAL_BACKGROUNDS[vertical] ?? null;
 
   for (const phase of phases) {
     if (!phase.slides?.length) continue;
@@ -531,7 +540,7 @@ export async function buildDeck({ phases, vertical, contextText, verticalLabel }
         speakerNote: phase.job,
       };
       const fn = TEMPLATES[type] ?? addProblemSlide;
-      fn(pptx, { phase, content, slideFilename, verticalLabel, tagline });
+      fn(pptx, { phase, content, slideFilename, verticalLabel, tagline, bgImage });
     }
   }
 
